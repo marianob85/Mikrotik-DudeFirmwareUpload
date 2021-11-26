@@ -1,12 +1,15 @@
 import feedparser
 import re
 import os
+import io
 import ssl
 import shutil
 import zipfile
 import optparse
 import urllib
+import glob
 from tqdm import tqdm
+from ftplib import FTP, error_perm
 
 
 class DownloadProgressBar(tqdm):
@@ -17,7 +20,9 @@ class DownloadProgressBar(tqdm):
 
 
 class MicrotikRss():
-    def __init__(self):
+    def __init__(self, localDir, ftpServer: FTP):
+        self.localDir = localDir
+        self.ftpServer = ftpServer
         self.arch = ["arm64", "mipsbe", "smips", "tile", "arm", "mmips"]
         self.archDude = ["arm64", "tile", "arm", "mmips"]
         self.urlMain = "https://download.mikrotik.com/routeros/{version}/routeros-{arch}-{version}.npk"
@@ -32,38 +37,71 @@ class MicrotikRss():
         m = re.match(pattern, entry)
         return m.group(1)
 
-    def __download(self, file, localDir):
+    def __download(self, file):
         filename = os.path.basename(urllib.request.urlparse(file).path)
         ssl._create_default_https_context = ssl._create_unverified_context
 
-        localFileName = os.path.join(localDir, filename)
+        localFileName = os.path.join(self.localDir, filename)
         with DownloadProgressBar(unit='B', unit_scale=True, miniters=1, desc=filename) as t:
             urllib.request.urlretrieve(file, localFileName, reporthook=t.update_to)
         return localFileName
 
-    def download(self, version, localDir):
-        shutil.rmtree(localDir, ignore_errors=True)
-        os.makedirs(localDir, exist_ok=True)
+    def download(self, version=None):
+        if not version:
+            version = mt.versionStable
+        self.cleanup()
+        os.makedirs(self.localDir, exist_ok=True)
 
         for arch in self.arch:
-            self.__download(self.urlMain.format(version=version, arch=arch), localDir)
+            self.__download(self.urlMain.format(version=version, arch=arch))
             if arch in self.urlDude:
-                self.urlDude(self.urlMain.format(version=version, arch=arch), localDir)
-            zipFile = self.__download(self.urlExtra.format(version=version, arch=arch), localDir)
+                self.urlDude(self.urlMain.format(version=version, arch=arch), self.localDir)
+            zipFile = self.__download(self.urlExtra.format(version=version, arch=arch))
             with zipfile.ZipFile(zipFile, 'r') as zip_ref:
                 print("Unzipping: {}".format(zipFile))
-                zip_ref.extractall(localDir)
+                zip_ref.extractall(self.localDir)
             os.remove(zipFile)
 
+    def cleanup(self):
+        shutil.rmtree(self.localDir, ignore_errors=True)
 
-def isNewVersion(mtVersion, ftpServer):
-    try:
-        response = urllib.request.urlopen(ftpServer + "/version")
-        fileVersion = response.read().decode('utf-8')
-        return mtVersion != fileVersion
-    except urllib.error.URLError:
-        return True
-    return True
+    def removeOldFiles(self):
+        fileList = ftpObject.nlst()
+        r = re.compile(".*\.npk")
+
+        try:
+            self.ftpServer.delete("version")
+        except error_perm:
+            pass
+        for file in list(filter(r.match, fileList)):
+            try:
+                self.ftpServer.delete(file)
+            except error_perm:
+                pass
+            print("Removed: {}".format(file))
+
+    def isNewVersion(self, version=None):
+        if not version:
+            version = mt.versionStable
+        try:
+            r = io.BytesIO()
+            self.ftpServer.retrbinary('RETR ./version', r.write)
+            return r.getvalue().decode('utf-8') != version
+        except error_perm:
+            return True
+
+    def uploadVersion(self, version = None ):
+        if not version:
+            version = mt.versionStable
+        r = io.BytesIO(version.encode('utf-8'))
+        self.ftpServer.storbinary("STOR version", r)
+
+    def uploadNewFiles(self):
+        self.uploadVersion()
+        for file in glob.glob(os.path.join(self.localDir, "*.npk")):
+            with open(file, 'rb') as infile: 
+                print("Tranfering file to mikrotik: {}".format(os.path.basename(file)))
+                self.ftpServer.storbinary("STOR {}".format(os.path.basename(file)), infile)
 
 
 if __name__ == '__main__':
@@ -89,12 +127,21 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
-    mt = MicrotikRss()
+    ftpData = urllib.parse.urlsplit(options.ftpUrl)
 
-    ftpServer = "ftp://{user}:{password}@{server}".format(user=options.ftpUser, password=options.ftpPassword, server=options.ftpUrl)
+    ftpObject = FTP()
+    ftpObject.connect(host=ftpData.hostname)
+    ftpObject.login(options.ftpUser, options.ftpPassword)
+    ftpObject.cwd(ftpData.path)
 
-    if not isNewVersion(mt.versionStable, ftpServer):
+    mt = MicrotikRss("./firmware", ftpObject)
+
+    if not mt.isNewVersion():
         print("No new version found: Existing: {}".format(mt.versionStable))
         exit(0)
+    mt.download()
+    mt.removeOldFiles()
+    mt.uploadNewFiles()
+    mt.cleanup()
 
-    mt.download(mt.versionStable, "./firmware")
+    ftpObject.close()
