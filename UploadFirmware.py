@@ -54,8 +54,8 @@ class MicrotikRss():
 
         for arch in self.arch:
             self.__download(self.urlMain.format(version=version, arch=arch))
-            if arch in self.urlDude:
-                self.urlDude(self.urlMain.format(version=version, arch=arch), self.localDir)
+            if arch in self.archDude:
+                self.__download(self.urlDude.format(version=version, arch=arch))
             zipFile = self.__download(self.urlExtra.format(version=version, arch=arch))
             with zipfile.ZipFile(zipFile, 'r') as zip_ref:
                 print("Unzipping: {}".format(zipFile))
