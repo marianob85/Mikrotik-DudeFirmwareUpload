@@ -139,6 +139,7 @@ if __name__ == '__main__':
     if not mt.isNewVersion():
         print("No new version found: Existing: {}".format(mt.versionStable))
         exit(0)
+    print("New version found: Processing: {}".format(mt.versionStable))
     mt.download()
     mt.removeOldFiles()
     mt.uploadNewFiles()
