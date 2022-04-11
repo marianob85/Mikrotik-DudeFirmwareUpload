@@ -5,7 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Run local",
+            "type": "python",
+            "request": "launch",
+            "program": "UploadFirmware.py",
+            "console": "integratedTerminal",
+            "args": [
+                
+            ]
+        },
+        {
+            "name": "Run with upload",
             "type": "python",
             "request": "launch",
             "program": "UploadFirmware.py",
