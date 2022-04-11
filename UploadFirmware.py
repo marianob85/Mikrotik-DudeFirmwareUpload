@@ -145,6 +145,7 @@ if __name__ == '__main__':
             print("No new version found: Existing: {}".format(mt.versionStable))
             exit(0)
 
+    print("New version found: Processing: {}".format(mt.versionStable))
     mt.download()
     
     if ftpObject:
