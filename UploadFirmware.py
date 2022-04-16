@@ -37,7 +37,7 @@ class MicrotikRss():
         return m.group(1)
 
     def _isRouterOS(self, versionShort):
-        return str(versionShort).startswith('7')
+        return self.versionStable.startswith(str(versionShort))
 
     def _download(self, file):
         filename = os.path.basename(urllib.request.urlparse(file).path)
