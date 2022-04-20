@@ -11,7 +11,8 @@
             "program": "UploadFirmware.py",
             "console": "integratedTerminal",
             "args": [
-                
+                "-v",
+                "7.2.1"
             ]
         },
         {
@@ -26,7 +27,9 @@
                 "-u",
                 "xxx",
                 "-p",
-                "xxx"
+                "xxx",
+                "-v",
+                "7.2.1"
             ]
         }
     ]

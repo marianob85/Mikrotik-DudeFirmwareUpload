@@ -20,14 +20,17 @@ class DownloadProgressBar(tqdm):
 
 
 class MicrotikRss():
-    def __init__(self, localDir ):
+    def __init__(self, localDir, version ):
         self.localDir = localDir
         self.arch = ["arm64", "mipsbe", "smips", "tile", "arm", "mmips"]
         self.archDude = ["arm64", "tile", "arm", "mmips"]
         self.urlMain = "https://download.mikrotik.com/routeros/{version}/routeros-{arch}-{version}.npk"
         self.urlExtra = "https://download.mikrotik.com/routeros/{version}/all_packages-{arch}-{version}.zip"
         self.urlDude = "https://download.mikrotik.com/routeros/{version}/dude-{version}-{arch}.npk"
-        self.versionStable = self._latestVersion()
+        if version:
+            self.versionStable = version
+        else:
+            self.versionStable = self._latestVersion()
 
     def _latestVersion(self, version="current.rss"):
         NewsFeed = feedparser.parse("https://mikrotik.com/{}".format(version))
@@ -127,12 +130,17 @@ if __name__ == '__main__':
                       type="string",
                       dest="ftpPassword",
                       help="Ftp server password")
+    parser.add_option("-v", "--version",
+                    action="store",
+                    type="string",
+                    dest="version",
+                    help="RoS Version")
 
     (options, args) = parser.parse_args()
 
     ftpObject = None
 
-    mt = MicrotikRss("./firmware")
+    mt = MicrotikRss("./firmware", options.version)
 
     if options.ftpUrl:
         ftpData = urllib.parse.urlsplit(options.ftpUrl)
