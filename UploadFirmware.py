@@ -27,7 +27,7 @@ class MicrotikRss():
         self.urlMain = "https://download.mikrotik.com/routeros/{version}/routeros-{arch}-{version}.npk"
         self.urlExtra = "https://download.mikrotik.com/routeros/{version}/all_packages-{arch}-{version}.zip"
         self.urlDude = "https://download.mikrotik.com/routeros/{version}/dude-{version}-{arch}.npk"
-        if version:
+        if version and version!="None":
             self.versionStable = version
         else:
             self.versionStable = self._latestVersion()
@@ -134,6 +134,7 @@ if __name__ == '__main__':
                     action="store",
                     type="string",
                     dest="version",
+                    default=None,
                     help="RoS Version")
 
     (options, args) = parser.parse_args()
