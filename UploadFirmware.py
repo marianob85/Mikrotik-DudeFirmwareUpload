@@ -20,14 +20,16 @@ class DownloadProgressBar(tqdm):
 
 
 class MicrotikRss():
-    def __init__(self, localDir, version ):
+    def __init__(self, localDir, version):
         self.localDir = localDir
         self.arch = ["arm64", "mipsbe", "smips", "tile", "arm", "mmips"]
         self.archDude = ["arm64", "tile", "arm", "mmips"]
-        self.urlMain = "https://download.mikrotik.com/routeros/{version}/routeros-{arch}-{version}.npk"
-        self.urlExtra = "https://download.mikrotik.com/routeros/{version}/all_packages-{arch}-{version}.zip"
+        self.urlMain = ["https://download.mikrotik.com/routeros/{version}/routeros-{arch}-{version}.npk",
+                        "https://download.mikrotik.com/routeros/{version}/routeros-{version}-{arch}.npk"]
+        self.urlExtra = ["https://download.mikrotik.com/routeros/{version}/all_packages-{arch}-{version}.zip",
+                         "https://download.mikrotik.com/routeros/{version}/all_packages-{version}-{arch}.zip"]
         self.urlDude = "https://download.mikrotik.com/routeros/{version}/dude-{version}-{arch}.npk"
-        if version and version!="None":
+        if version and version != "None":
             self.versionStable = version
         else:
             self.versionStable = self._latestVersion()
@@ -58,11 +60,30 @@ class MicrotikRss():
         os.makedirs(self.localDir, exist_ok=True)
 
         for arch in self.arch:
-            self._download(self.urlMain.format(version=version, arch=arch))
+            found = False
+            for url in self.urlMain:
+                if not found:
+                    try:
+                        self._download(url.format(version=version, arch=arch))
+                        found = True
+                    except urllib.error.HTTPError:
+                        pass
+
+            if not found:
+                exit(1)
             if self._isRouterOS(6):
                 if arch in self.archDude:
                     self._download(self.urlDude.format(version=version, arch=arch))
-            zipFile = self._download(self.urlExtra.format(version=version, arch=arch))
+
+            zipFile = None
+            for url in self.urlExtra:
+                if zipFile is None:
+                    try:
+                        zipFile = self._download(url.format(version=version, arch=arch))
+                    except urllib.error.HTTPError:
+                        pass
+            if not zipFile:
+                exit(1)
             with zipfile.ZipFile(zipFile, 'r') as zip_ref:
                 print("Unzipping: {}".format(zipFile))
                 zip_ref.extractall(self.localDir)
@@ -96,7 +117,7 @@ class MicrotikRss():
         except error_perm:
             return True
 
-    def uploadVersion(self, ftpServer: FTP, version = None ):
+    def uploadVersion(self, ftpServer: FTP, version=None):
         if not version:
             version = mt.versionStable
         r = io.BytesIO(version.encode('utf-8'))
@@ -105,7 +126,7 @@ class MicrotikRss():
     def uploadNewFiles(self, ftpServer: FTP):
         self.uploadVersion(ftpServer)
         for file in glob.glob(os.path.join(self.localDir, "*.npk")):
-            with open(file, 'rb') as infile: 
+            with open(file, 'rb') as infile:
                 print("Tranfering file to mikrotik: {}".format(os.path.basename(file)))
                 ftpServer.storbinary("STOR {}".format(os.path.basename(file)), infile)
 
@@ -131,11 +152,11 @@ if __name__ == '__main__':
                       dest="ftpPassword",
                       help="Ftp server password")
     parser.add_option("-v", "--version",
-                    action="store",
-                    type="string",
-                    dest="version",
-                    default=None,
-                    help="RoS Version")
+                      action="store",
+                      type="string",
+                      dest="version",
+                      default=None,
+                      help="RoS Version")
 
     (options, args) = parser.parse_args()
 
@@ -156,12 +177,10 @@ if __name__ == '__main__':
 
     print("New version found: Processing: {}".format(mt.versionStable))
     mt.download()
-    
+
     if ftpObject:
         mt.removeOldFiles(ftpObject)
         mt.uploadNewFiles(ftpObject)
-        
+
         ftpObject.close()
         mt.cleanup()
-
-        
